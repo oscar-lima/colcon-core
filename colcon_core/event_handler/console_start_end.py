@@ -4,6 +4,8 @@
 import sys
 import time
 
+import colorama
+
 from colcon_core.event.job import JobEnded
 from colcon_core.event.job import JobStarted
 from colcon_core.event.test import TestFailure
@@ -26,6 +28,7 @@ class ConsoleStartEndEventHandler(EventHandlerExtensionPoint):
 
     def __init__(self):  # noqa: D107
         super().__init__()
+        colorama.init()
         satisfies_version(
             EventHandlerExtensionPoint.EXTENSION_POINT_VERSION, '^1.0')
         self._start_times = {}
@@ -37,8 +40,10 @@ class ConsoleStartEndEventHandler(EventHandlerExtensionPoint):
         if isinstance(data, JobStarted):
             job_id = Style.PackageOrJobName(data.identifier)
             self._start_times[data.identifier] = time.monotonic()
-            msg = 'Starting ' + Style.Pictogram('>>>') + f' {job_id}'
-            print(Style.SectionStart(msg), flush=True)
+            msg = ('Starting ' + colorama.Fore.GREEN +
+                    colorama.Style.BRIGHT + '>>>' + colorama.Fore.CYAN +
+                    f' {data.identifier}' + colorama.Style.RESET_ALL)
+            print(msg, flush=True)
 
         elif isinstance(data, TestFailure):
             job = event[1]
@@ -50,23 +55,31 @@ class ConsoleStartEndEventHandler(EventHandlerExtensionPoint):
                 time.monotonic() - self._start_times[data.identifier]
             duration_string = Style.Measurement(format_duration(duration))
             if not data.rc:
-                msg = 'Finished ' + Style.Pictogram('<<<') + \
-                    f' {job_id} [{duration_string}]'
+                msg = (colorama.Style.BRIGHT + colorama.Fore.LIGHTBLACK_EX +
+                       'Finished ' + colorama.Fore.GREEN + '<<<'
+                       + colorama.Style.RESET_ALL + colorama.Fore.CYAN
+                       + f' {data.identifier}' + colorama.Fore.RESET
+                       + ' [' + colorama.Fore.YELLOW +
+                       f'{duration_string}' + colorama.Fore.RESET + ']')
                 job = event[1]
                 if job in self._with_test_failures:
                     msg += Style.Warning('\t[ with test failures ]')
                 writable = sys.stdout
 
             elif data.rc == SIGINT_RESULT:
-                msg = Style.Warning('Aborted') + '  ' + \
-                    Style.Pictogram('<<<') + f' {job_id} [{duration_string}]'
+                msg = (colorama.Style.BRIGHT + colorama.Fore.RED +
+                       'Aborted  ' + colorama.Style.NORMAL + '<<<'
+                       + colorama.Fore.CYAN + f' {data.identifier}'
+                       + colorama.Fore.RESET)
                 writable = sys.stdout
 
             else:
-                msg = Style.Critical('Failed') + '   ' + \
-                    Style.Pictogram('<<<') + f' {job_id} ' \
-                    f'[{duration_string}, ' + \
-                    Style.Error(f'exited with code {data.rc}') + ']'
+                msg = (colorama.Style.BRIGHT + colorama.Fore.RED +
+                       'Failed   ' + colorama.Style.NORMAL + '<<<' +
+                       colorama.Fore.CYAN + f' {data.identifier}' +
+                       colorama.Fore.RESET + ' [' + colorama.Fore.RED +
+                       f'Exited with code {data.rc}' +
+                       colorama.Fore.RESET + ']')
                 writable = sys.stderr
 
-            print(Style.SectionEnd(msg), file=writable, flush=True)
+            print(msg, file=writable, flush=True)
